@@ -2,7 +2,7 @@
 
 ###Installing
 
-You will need the lib to use this tool:  
+You will need the libiec60870 to use this tool:  
 http://libiec61850.com/libiec61850/downloads/
 
 You can build 104client with the following command
