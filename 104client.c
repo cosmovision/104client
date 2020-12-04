@@ -1,7 +1,7 @@
-#include <iec60870_master.h>
-#include <iec60870_common.h>
-#include <hal_time.h>
-#include <hal_thread.h>
+#include "cs104_connection.h"
+#include "hal_time.h"
+#include "hal_thread.h"
+
 
 #include <getopt.h>
 #include <stdio.h>
@@ -44,174 +44,171 @@ void printSP(SinglePointInformation SP) {
         printf("OFF (0)");
 }
 
+/* Callback handler to log sent or received messages (optional) */ 
 static void
-connectionHandler (void* parameter, T104Connection connection, IEC60870ConnectionEvent event)
+rawMessageHandler (void* parameter, uint8_t* msg, int msgSize, bool sent)
+{
+    if (sent)
+        printf("SEND: ");
+    else
+        printf("RCVD: ");
+
+    int i;
+    for (i = 0; i < msgSize; i++) {
+        printf("%02x ", msg[i]);
+    }
+
+    printf("\n");
+}
+
+/* Connection event handler */
+static void
+connectionHandler (void* parameter, CS104_Connection connection, CS104_ConnectionEvent event)
 {
     switch (event) {
-    case IEC60870_CONNECTION_OPENED:
-        if (verbose) printf("Connection established\n");
+    case CS104_CONNECTION_OPENED:
+        printf("Connection established\n");
         break;
-    case IEC60870_CONNECTION_CLOSED:
-        if (verbose) printf("Connection closed\n");
+    case CS104_CONNECTION_CLOSED:
+        printf("Connection closed\n");
         break;
-    case IEC60870_CONNECTION_STARTDT_CON_RECEIVED:
-        if (verbose) printf("Received STARTDT_CON\n"); 
+    case CS104_CONNECTION_STARTDT_CON_RECEIVED:
+        printf("Received STARTDT_CON\n");
         break;
-    case IEC60870_CONNECTION_STOPDT_CON_RECEIVED:
-        if (verbose) printf("Received STOPDT_CON\n");
+    case CS104_CONNECTION_STOPDT_CON_RECEIVED:
+        printf("Received STOPDT_CON\n");
         break;
     }
 }
 
+/*
+ * CS101_ASDUReceivedHandler implementation
+ *
+ * For CS104 the address parameter has to be ignored
+ */
 static bool
-asduReceivedHandler (void* parameter, ASDU asdu)
+asduReceivedHandler (void* parameter, int address, CS101_ASDU asdu)
 {
-    if (verbose)
-            printf("RECVD ASDU type: %s(%i) elements: %i\n",
-            TypeID_toString(ASDU_getTypeID(asdu)),
-            ASDU_getTypeID(asdu),
-            ASDU_getNumberOfElements(asdu));
+    printf("RECVD ASDU type: %s(%i) elements: %i\n",
+            TypeID_toString(CS101_ASDU_getTypeID(asdu)),
+            CS101_ASDU_getTypeID(asdu),
+            CS101_ASDU_getNumberOfElements(asdu));
     
 
-    if (ASDU_getTypeID(asdu) == M_ME_NB_1) {
+    if (CS101_ASDU_getTypeID(asdu) == M_ME_NB_1) {
         if (verbose) printf("  measured scaled values:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            MeasuredValueScaled io = (MeasuredValueScaled) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            MeasuredValueScaled io = (MeasuredValueScaled) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i scaled: %i\n", 
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io), 
                 MeasuredValueScaled_getValue((MeasuredValueScaled) io));
             MeasuredValueScaled_destroy(io);
         }
     }
-    else if (ASDU_getTypeID(asdu) == M_ME_TB_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == M_ME_TB_1) {
         if (verbose) printf("  measured scaled values with CP24Time2a timestamp:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            MeasuredValueScaledWithCP24Time2a io = (MeasuredValueScaledWithCP24Time2a) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            MeasuredValueScaledWithCP24Time2a io = (MeasuredValueScaledWithCP24Time2a) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i scaled: %i   ", 
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io), 
                 MeasuredValueScaled_getValue((MeasuredValueScaled) io));
             printCP24Time2a(MeasuredValueScaledWithCP24Time2a_getTimestamp(io)); printf("\n");
             MeasuredValueScaledWithCP24Time2a_destroy(io);
         }
     }
-    else if (ASDU_getTypeID(asdu) == M_ME_TE_1) {
-        if (verbose) printf("  measured scaled values with CP56Time2a timestamp:\n");
-        int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            MeasuredValueScaledWithCP56Time2a io = (MeasuredValueScaledWithCP56Time2a) ASDU_getElement(asdu, i);
-            printf("    CA: %i IOA: %i scaled: %i   ", 
-                ASDU_getCA(asdu),
-                InformationObject_getObjectAddress((InformationObject) io), 
-                MeasuredValueScaled_getValue((MeasuredValueScaled) io));
-            printCP56Time2a(MeasuredValueScaledWithCP56Time2a_getTimestamp(io)); printf("\n");
-            MeasuredValueScaledWithCP56Time2a_destroy(io);
-        }
-    }
-    else if (ASDU_getTypeID(asdu) == M_ME_NC_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == M_ME_NC_1) {
         if (verbose) printf("  measured float values:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            MeasuredValueShort io = (MeasuredValueShort) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            MeasuredValueShort io = (MeasuredValueShort) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i float : %f\n",
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io),
                 MeasuredValueShort_getValue((MeasuredValueShort) io));
             MeasuredValueShort_destroy(io);
         }
     } 
-    else if (ASDU_getTypeID(asdu) == M_ME_TC_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == M_ME_TC_1) {
         if (verbose) printf("  measured float values with CP24Time2a timestamp:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            MeasuredValueShortWithCP24Time2a io = (MeasuredValueShortWithCP24Time2a) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            MeasuredValueShortWithCP24Time2a io = (MeasuredValueShortWithCP24Time2a) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i float : %f   ",
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io),
                 MeasuredValueShort_getValue((MeasuredValueShort) io));
             printCP24Time2a(MeasuredValueShortWithCP24Time2a_getTimestamp(io)); printf("\n");
             MeasuredValueShortWithCP24Time2a_destroy(io);
         }
     } 
-    else if (ASDU_getTypeID(asdu) == M_ME_TF_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == M_ME_TF_1) {
         if (verbose) printf("  measured float values with CP56Time2a timestamp:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            MeasuredValueShortWithCP56Time2a io = (MeasuredValueShortWithCP56Time2a) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            MeasuredValueShortWithCP56Time2a io = (MeasuredValueShortWithCP56Time2a) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i float : %f   ",
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io),
                 MeasuredValueShort_getValue((MeasuredValueShort) io));
             printCP56Time2a(MeasuredValueShortWithCP56Time2a_getTimestamp(io)); printf("\n");
             MeasuredValueShortWithCP56Time2a_destroy(io);
         }
     } 
-    else if (ASDU_getTypeID(asdu) == M_ME_NA_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == M_ME_NA_1) {
         if (verbose) printf("  measured normalized values:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            MeasuredValueNormalized io = (MeasuredValueNormalized) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            MeasuredValueNormalized io = (MeasuredValueNormalized) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i normal: %f\n",
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io),
                 MeasuredValueNormalized_getValue((MeasuredValueNormalized) io));
             MeasuredValueNormalized_destroy(io);
         }
     }           
-    else if (ASDU_getTypeID(asdu) == M_SP_NA_1) {
-        if (verbose) printf("  single point information:\n");
-        int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            SinglePointInformation io = (SinglePointInformation) ASDU_getElement(asdu, i);
-            printf("    CA: %i IOA: %i SPstat: ",
-                ASDU_getCA(asdu),
-                InformationObject_getObjectAddress((InformationObject) io));
-            printSP((SinglePointInformation) io); printf("\n");
-            SinglePointInformation_destroy(io);
-        }
-    }
-    else if (ASDU_getTypeID(asdu) == M_SP_TB_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == M_SP_TB_1) {
         if (verbose) printf("  single point information with CP56Time2a timestamp:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            SinglePointWithCP56Time2a io = (SinglePointWithCP56Time2a) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            SinglePointWithCP56Time2a io = (SinglePointWithCP56Time2a) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i SPstat: %i    ",
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io),
                 SinglePointInformation_getValue((SinglePointInformation) io));
             printCP56Time2a(SinglePointWithCP56Time2a_getTimestamp(io)); printf("\n");
             SinglePointWithCP56Time2a_destroy(io);
         }
     }    
-    else if (ASDU_getTypeID(asdu) == M_DP_NA_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == M_DP_NA_1) {
         if (verbose) printf("  double point information:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            DoublePointInformation io = (DoublePointInformation) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            DoublePointInformation io = (DoublePointInformation) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i DPstat: ",
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io));
             printDP((DoublePointInformation) io); printf("\n");
             DoublePointInformation_destroy(io);
         }
     }
-    else if (ASDU_getTypeID(asdu) == M_DP_TB_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == M_DP_TB_1) {
         if (verbose) printf("  double point information with CP56Time2a timestamp:\n");
         int i;
-        for (i = 0; i < ASDU_getNumberOfElements(asdu); i++) {
-            DoublePointWithCP56Time2a io = (DoublePointWithCP56Time2a) ASDU_getElement(asdu, i);
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            DoublePointWithCP56Time2a io = (DoublePointWithCP56Time2a) CS101_ASDU_getElement(asdu, i);
             printf("    CA: %i IOA: %i DPstat: ",
-                ASDU_getCA(asdu),
+                CS101_ASDU_getCA(asdu),
                 InformationObject_getObjectAddress((InformationObject) io));
             printDP((DoublePointInformation) io); printf("   ");
             printCP56Time2a(DoublePointWithCP56Time2a_getTimestamp(io)); printf("\n");
             DoublePointWithCP56Time2a_destroy(io);
         }
     }
-    else if (ASDU_getTypeID(asdu) == C_IC_NA_1) {
+    else if (CS101_ASDU_getTypeID(asdu) == C_IC_NA_1) {
         if (verbose) printf("  Received (General-) Interrogation command\n");
     }
     return true;
@@ -392,22 +389,29 @@ main(int argc, char** argv)
         }
     }
 
-    T104Connection con = T104Connection_create(IP, IEC_60870_5_104_DEFAULT_PORT);
+    if (verbose)    printf("Connecting to: %s:%i\n", IP, IEC_60870_5_104_DEFAULT_PORT);
+    CS104_Connection con = CS104_Connection_create(IP, IEC_60870_5_104_DEFAULT_PORT);
 
-    T104Connection_setConnectionHandler(con, connectionHandler, NULL);
+    CS104_Connection_setConnectionHandler(con, connectionHandler, NULL);
 
-    if (T104Connection_connect(con)) {
+
+    //CS101_AppLayerParameters alParams = CS104_Connection_getAppLayerParameters(con);
+    //alParams->originatorAddress = 3;
+
+    if (verbose) CS104_Connection_setRawMessageHandler(con, rawMessageHandler, NULL);
+
+    if (CS104_Connection_connect(con)) {
         printf("----- IEC 60870-5-104 Connection started ----- \n");
 
-        T104Connection_setASDUReceivedHandler(con, asduReceivedHandler, NULL);
+        CS104_Connection_setASDUReceivedHandler(con, asduReceivedHandler, NULL);
         
-        T104Connection_sendStartDT(con);
+        CS104_Connection_sendStartDT(con);
         
         Thread_sleep(con_secs * 1000);
         
         if (send_interrogation) {
             printf("----- IEC 60870-5-104 Send Interrogation ----- \n");
-            T104Connection_sendInterrogationCommand(con, ACTIVATION, CA, IEC60870_QOI_STATION);
+            CS104_Connection_sendInterrogationCommand(con, CS101_COT_ACTIVATION, CA, IEC60870_QOI_STATION);
             Thread_sleep(3000);
         }
 
@@ -435,7 +439,7 @@ main(int argc, char** argv)
             
             if (verbose) printf("Send control command %s\n",TypeID_toString(command_type));
             
-            T104Connection_sendControlCommand(con, command_type, ACTIVATION, CA, command_object);
+            CS104_Connection_sendProcessCommand(con, command_type, CS101_COT_ACTIVATION, CA, command_object);
 
             InformationObject_destroy(command_object);
         }
@@ -444,11 +448,10 @@ main(int argc, char** argv)
     else
         printf("Connect failed!\n");
     
-    T104Connection_destroy(con);
+    CS104_Connection_destroy(con);
 
     Thread_sleep(1000);
     
     if (verbose) printf("exit\n");
 
 }
-

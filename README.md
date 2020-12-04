@@ -7,7 +7,7 @@ http://libiec61850.com/libiec61850/downloads/
 
 You can build 104client with the following command
 ```bash
-g++ -Wall -I/usr/local/include/lib60870 -liec60870 -pthread 104client.c -o104client
+g++ -Wall -I/usr/local/include -pthread 104client.c -o104client -l60870
 ```
 
 ###Usage
