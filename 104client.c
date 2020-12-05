@@ -208,6 +208,19 @@ asduReceivedHandler (void* parameter, int address, CS101_ASDU asdu)
             SinglePointInformation_destroy(io);
         }
     }
+    else if (CS101_ASDU_getTypeID(asdu) == M_SP_TA_1) {
+        if (verbose) printf("  single point information with CP24Time2a timestamp:\n");
+        int i;
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            SinglePointWithCP24Time2a io = (SinglePointWithCP24Time2a) CS101_ASDU_getElement(asdu, i);
+            printf("    CA: %i IOA: %i SPstat: ",
+                CS101_ASDU_getCA(asdu),
+                InformationObject_getObjectAddress((InformationObject) io));
+            printSP((SinglePointInformation) io); printf("   ");
+            printCP24Time2a(SinglePointWithCP24Time2a_getTimestamp(io)); printf("\n");
+            SinglePointWithCP24Time2a_destroy(io);
+        }
+    }
     else if (CS101_ASDU_getTypeID(asdu) == M_DP_NA_1) {
         if (verbose) printf("  double point information:\n");
         int i;
