@@ -120,6 +120,19 @@ asduReceivedHandler (void* parameter, int address, CS101_ASDU asdu)
             MeasuredValueScaledWithCP24Time2a_destroy(io);
         }
     }
+    else if (CS101_ASDU_getTypeID(asdu) == M_ME_TE_1) {
+        if (verbose) printf("  measured scaled values with CP56Time2a timestamp:\n");
+        int i;
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            MeasuredValueScaledWithCP56Time2a io = (MeasuredValueScaledWithCP56Time2a) CS101_ASDU_getElement(asdu, i);
+            printf("    CA: %i IOA: %i scaled: %i   ", 
+                CS101_ASDU_getCA(asdu),
+                InformationObject_getObjectAddress((InformationObject) io), 
+                MeasuredValueScaled_getValue((MeasuredValueScaled) io));
+            printCP56Time2a(MeasuredValueScaledWithCP56Time2a_getTimestamp(io)); printf("\n");
+            MeasuredValueScaledWithCP56Time2a_destroy(io);
+        }
+    }
     else if (CS101_ASDU_getTypeID(asdu) == M_ME_NC_1) {
         if (verbose) printf("  measured float values:\n");
         int i;
@@ -182,7 +195,19 @@ asduReceivedHandler (void* parameter, int address, CS101_ASDU asdu)
             printCP56Time2a(SinglePointWithCP56Time2a_getTimestamp(io)); printf("\n");
             SinglePointWithCP56Time2a_destroy(io);
         }
-    }    
+    }     
+    else if (CS101_ASDU_getTypeID(asdu) == M_SP_NA_1) {
+        if (verbose) printf("  single point information:\n");
+        int i;
+        for (i = 0; i < CS101_ASDU_getNumberOfElements(asdu); i++) {
+            SinglePointInformation io = (SinglePointInformation) CS101_ASDU_getElement(asdu, i);
+            printf("    CA: %i IOA: %i SPstat: ",
+                CS101_ASDU_getCA(asdu),
+                InformationObject_getObjectAddress((InformationObject) io));
+            printSP((SinglePointInformation) io); printf("\n");
+            SinglePointInformation_destroy(io);
+        }
+    }
     else if (CS101_ASDU_getTypeID(asdu) == M_DP_NA_1) {
         if (verbose) printf("  double point information:\n");
         int i;
@@ -209,7 +234,7 @@ asduReceivedHandler (void* parameter, int address, CS101_ASDU asdu)
         }
     }
     else if (CS101_ASDU_getTypeID(asdu) == C_IC_NA_1) {
-        if (verbose) printf("  Received (General-) Interrogation command\n");
+        printf("    Received (General-) Interrogation command\n");
     }
     return true;
 }
